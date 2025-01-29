@@ -1430,3 +1430,70 @@ func main() {
 		}
 	})
 }
+
+func TestImportFromVendorWithCacheCompletion(t *testing.T) {
+	const files = `
+-- github.com/foo/foo.go --
+package foo
+
+func init() {
+	bar.Buzz
+}
+
+-- github.com/foo/vendor/github.com/bar/bar.go --
+package bar
+
+func Buzz() {}
+`
+	WithOptions(
+		Modes(Default),
+		InGOPATH(),
+		EnvVars{
+			"GO111MODULE": "off",
+		},
+	).Run(t, files, func(t *testing.T, env *Env) {
+		env.OpenFile("github.com/foo/foo.go")
+		env.Await(env.DoneWithOpen())
+		saved := env.BufferText("github.com/foo/foo.go")
+		loc := env.RegexpSearch("github.com/foo/foo.go", "zz")
+		completions := env.Completion(loc)
+
+		if len(completions.Items) == 0 {
+			t.Fatalf("no completion items")
+		}
+		env.AcceptCompletion(loc, completions.Items[0])
+		env.Await(env.DoneWithChange())
+
+		// `bar.Buzz` should be `bar.Buzz()`
+		// but let it pass for the first time
+		const want = `package foo
+
+import "github.com/bar"
+
+func init() {
+	bar.Buzz
+}
+
+`
+		got := env.BufferText("github.com/foo/foo.go")
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("unexpected buffer content (-want +got):\n%s", diff)
+		}
+
+		// reset the buffer content, and redo the completion with cache
+		env.SetBufferContent("github.com/foo/foo.go", saved)
+		env.Await(env.DoneWithChange())
+
+		completions = env.Completion(loc)
+		if len(completions.Items) == 0 {
+			t.Fatalf("no completion items")
+		}
+		env.AcceptCompletion(loc, completions.Items[0])
+		env.Await(env.DoneWithChange())
+
+		got = env.BufferText("github.com/foo/foo.go")
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("unexpected buffer content (-want +got):\n%s", diff)
+		}
+	})
+}
