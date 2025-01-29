@@ -1464,9 +1464,7 @@ func Buzz() {}
 		env.AcceptCompletion(loc, completions.Items[0])
 		env.Await(env.DoneWithChange())
 
-		// `bar.Buzz` should be `bar.Buzz()`
-		// but let it pass for the first time
-		const want = `package foo
+		want := `package foo
 
 import "github.com/bar"
 
@@ -1491,6 +1489,15 @@ func init() {
 		env.AcceptCompletion(loc, completions.Items[0])
 		env.Await(env.DoneWithChange())
 
+		want = `package foo
+
+import "github.com/bar"
+
+func init() {
+	bar.Buzz()
+}
+
+`
 		got = env.BufferText("github.com/foo/foo.go")
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("unexpected buffer content (-want +got):\n%s", diff)

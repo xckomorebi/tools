@@ -1388,7 +1388,7 @@ func (c *completer) selector(ctx context.Context, sel *ast.SelectorExpr) error {
 			// of the item? How does this compare with the deepState.enqueue path?
 			item := CompletionItem{
 				Label:      id.Name,
-				Detail:     fmt.Sprintf("%s (from %q)", strings.ToLower(tok.String()), mp.PkgPath),
+				Detail:     fmt.Sprintf("%s (from %q)", strings.ToLower(tok.String()), stripVendorPrefix(string(mp.PkgPath))),
 				InsertText: id.Name,
 				Score:      float64(score) * unimportedScore(relevances[path]),
 			}
@@ -1405,7 +1405,7 @@ func (c *completer) selector(ctx context.Context, sel *ast.SelectorExpr) error {
 			}
 
 			if needImport {
-				imp := &importInfo{importPath: path}
+				imp := &importInfo{importPath: stripVendorPrefix(path)}
 				if imports.ImportPathToAssumedName(path) != string(mp.Name) {
 					imp.name = string(mp.Name)
 				}
@@ -3727,4 +3727,12 @@ func forEachPackageMember(content []byte, f func(tok token.Token, id *ast.Ident,
 func is[T any](x any) bool {
 	_, ok := x.(T)
 	return ok
+}
+
+func stripVendorPrefix(path string) string {
+	pathSegments := strings.Split(path, "/vendor/")
+	if len(pathSegments) > 1 {
+		return pathSegments[len(pathSegments)-1]
+	}
+	return path
 }
